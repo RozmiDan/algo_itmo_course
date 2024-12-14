@@ -1,0 +1,177 @@
+#include <iostream>
+#include <vector>
+#include <random>
+#include <chrono>
+
+struct TreapNode {
+    int value;
+    int size;
+    long long sum;
+    int priority;
+    TreapNode* left;
+    TreapNode* right;
+
+    TreapNode(int val) : value(val), size(1), sum(val), left(nullptr), right(nullptr) {
+        static std::mt19937 rng(std::chrono::steady_clock::now().time_since_epoch().count());
+        priority = rng();
+    }
+};
+
+void update(TreapNode* node) {
+    if (!node) return;
+    node->size = 1;
+    node->sum = node->value;
+    if (node->left) {
+        node->size += node->left->size;
+        node->sum += node->left->sum;
+    }
+    if (node->right) {
+        node->size += node->right->size;
+        node->sum += node->right->sum;
+    }
+}
+
+void split(TreapNode* node, int pos, TreapNode*& left, TreapNode*& right) {
+    if (!node) {
+        left = right = nullptr;
+        return;
+    }
+    int curr_pos = node->left ? node->left->size : 0;
+    if (pos <= curr_pos) {
+        split(node->left, pos, left, node->left);
+        right = node;
+    } else {
+        split(node->right, pos - curr_pos - 1, node->right, right);
+        left = node;
+    }
+    update(node);
+}
+
+TreapNode* merge(TreapNode* left, TreapNode* right) {
+    if (!left || !right)
+        return left ? left : right;
+    if (left->priority > right->priority) {
+        left->right = merge(left->right, right);
+        update(left);
+        return left;
+    } else {
+        right->left = merge(left, right->left);
+        update(right);
+        return right;
+    }
+}
+
+TreapNode* odd_root = nullptr;
+TreapNode* even_root = nullptr;
+
+void swap_pairs(int x, int y) {
+    int len = y - x + 1;
+    int left_even_pos = (x + 1) / 2;
+    int right_even_pos = (x + len + 1) / 2;
+    int left_odd_pos = x / 2;
+    int right_odd_pos = (x + len) / 2;
+
+    TreapNode *left_even, *mid_even_right;
+    TreapNode *mid_even, *right_even;
+
+
+    split(even_root, left_even_pos, left_even, mid_even_right);
+    split(mid_even_right, right_even_pos - left_even_pos, mid_even, right_even);
+
+    TreapNode *left_odd, *mid_odd_right;
+    TreapNode *mid_odd, *right_odd;
+
+    split(odd_root, left_odd_pos, left_odd, mid_odd_right);
+    split(mid_odd_right, right_odd_pos - left_odd_pos, mid_odd, right_odd);
+
+    even_root = merge(merge(left_even, mid_odd), right_even);
+    odd_root = merge(merge(left_odd, mid_even), right_odd);
+}
+
+long long range_sum(int a, int b) {
+    int len = b - a + 1;
+    int left_even_pos = (a + 1) / 2;
+    int right_even_pos = (b + 1) / 2;
+    int left_odd_pos = a / 2;
+    int right_odd_pos = b / 2;
+
+    TreapNode *left_even, *mid_even_right;
+    TreapNode *mid_even, *right_even;
+
+    split(even_root, left_even_pos, left_even, mid_even_right);
+    split(mid_even_right, right_even_pos - left_even_pos, mid_even, right_even);
+
+    TreapNode *left_odd, *mid_odd_right;
+    TreapNode *mid_odd, *right_odd;
+
+    split(odd_root, left_odd_pos, left_odd, mid_odd_right);
+    split(mid_odd_right, right_odd_pos - left_odd_pos, mid_odd, right_odd);
+
+    long long total_sum = 0;
+    if (mid_even) total_sum += mid_even->sum;
+    if (mid_odd) total_sum += mid_odd->sum;
+
+    even_root = merge(merge(left_even, mid_even), right_even);
+    odd_root = merge(merge(left_odd, mid_odd), right_odd);
+
+    return total_sum;
+}
+
+void clear_treap(TreapNode* node) {
+    if (!node) return;
+    clear_treap(node->left);
+    clear_treap(node->right);
+    delete node;
+}
+
+int main() {
+    std::ios_base::sync_with_stdio(false);
+    std::cin.tie(nullptr);
+
+    int test_case = 1;
+
+    while (true) {
+        int N, R;
+        std::cin >> N >> R;
+        if (N == 0 && R == 0)
+            break;
+
+        std::cout << "Suite " << test_case++ << ":\n";
+
+        odd_root = nullptr;
+        even_root = nullptr;
+
+        for (int i = 0; i < N; ++i) {
+            int value;
+            std::cin >> value;
+            TreapNode* node = new TreapNode(value);
+            if (i % 2 == 0) {
+                even_root = merge(even_root, node);
+            } else {
+                odd_root = merge(odd_root, node);
+            }
+        }
+
+        for (int i = 0; i < R; ++i) {
+            int type, x, y;
+            std::cin >> type >> x >> y;
+            --x;
+            --y;
+            if (type == 1) {
+                if ((y - x + 1) % 2 == 0) {
+                    swap_pairs(x, y);
+                }
+            } else if (type == 2) {
+                long long total = range_sum(x, y);
+                std::cout << total << '\n';
+            }
+        }
+
+        std::cout << '\n';
+
+        clear_treap(odd_root);
+        clear_treap(even_root);
+    }
+
+    return 0;
+}
